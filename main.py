@@ -56,7 +56,7 @@ driver = None
 board_elements = {key: None for key in board.keys()}
 
 
-def get_card_name_by_value(suit, rank) -> str | None:
+def get_card_name_by_value(suit: int, rank: int) -> str | None:
     """Generates the freesolitaire.win card name for the given suit and rank
 
     Parameters
@@ -177,7 +177,7 @@ def draw_from_stock():
     stock.click()
 
 
-def check_loc_empty(loc):
+def check_loc_empty(loc: str) -> bool:
     """Checks whether or not the given location is empty
 
     Parameters
@@ -193,7 +193,7 @@ def check_loc_empty(loc):
     return not board_state[loc]
 
 
-def check_tableau_empty(tableau_num):
+def check_tableau_empty(tableau_num: int) -> bool:
     """Checks whether or not the given tableau is empty
 
     Parameters
@@ -211,7 +211,7 @@ def check_tableau_empty(tableau_num):
     return check_loc_empty(tab_str)
 
 
-def check_foundation_empty(foundation_num):
+def check_foundation_empty(foundation_num: int) -> bool:
     """Checks whether or not the given tableau is empty
 
     Parameters
@@ -252,7 +252,7 @@ def check_foundations_empty() -> list[bool]:
     return [check_foundation_empty(foundation_num) for foundation_num in foundations]
 
 
-def check_foundation_movement_possible(card, dest) -> bool:
+def check_foundation_movement_possible(card: list[int], dest: str) -> bool:
     """Checks to see if movement of a card to the given foundation is possible
 
     Parameters
@@ -287,7 +287,7 @@ def check_foundation_movement_possible(card, dest) -> bool:
     return suit == dst_suit and dst_rank == rank - 1
 
 
-def check_tableau_movement_possible(card, dest):
+def check_tableau_movement_possible(card: list[int], dest: str):
     """Checks to see if movement of a card to the given tableau is possible
 
     Parameters
