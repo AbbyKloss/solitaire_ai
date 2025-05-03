@@ -3,6 +3,7 @@ from enum import Enum
 from json import dumps
 
 from selenium import webdriver
+from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 
 DEAL = 148042
@@ -40,7 +41,11 @@ board = {
     "tableau_7": [],  # Piles for cards to be in
 }
 
+board_state = {}
 cards = {}
+
+driver = None
+board_elements = {key: None for key in board.keys()}
 
 
 def get_card_name_by_value(suit, rank):
@@ -59,14 +64,37 @@ def set_up_cards():
             iter += 1
 
 
+def set_up_board_elements():
+    global board_elements
+
+    board_elements["stock"] = driver.find_element(by=By.CSS_SELECTOR, value=STOCK)
+    board_elements["waste"] = driver.find_element(by=By.CSS_SELECTOR, value=WASTE)
+    (
+        board_elements["foundation_1"],
+        board_elements["foundation_2"],
+        board_elements["foundation_3"],
+        board_elements["foundation_4"],
+    ) = driver.find_elements(by=By.CSS_SELECTOR, value=FOUND_CLASS)
+    (
+        board_elements["tableau_1"],
+        board_elements["tableau_2"],
+        board_elements["tableau_3"],
+        board_elements["tableau_4"],
+        board_elements["tableau_5"],
+        board_elements["tableau_6"],
+        board_elements["tableau_7"],
+    ) = driver.find_elements(by=By.CSS_SELECTOR, value=COLS)
+
+
 def driver_setup() -> webdriver:
+    global driver
     driver = webdriver.Firefox()
     driver.implicitly_wait(0.5)
-    return driver
 
 
 def get_board_state(driver) -> dict:
     # get a fresh copy of the blank board
+    global board_state
     board_state = deepcopy(board)
 
     # get stock state
@@ -121,21 +149,53 @@ def draw_from_stock(stock):
     stock.click()
 
 
-def check_foundation_empty(foundation_num):
-    pass
-
-
 def get_tableau_elements(tableau_num):
     pass
 
 
-def check_tableaus_empty() -> list[bool]:
-    tableaus = range(1, 5)
-    return [check_tableau_empty(tableau_num) for tableau_num in tableaus]
+def check_loc_empty(loc):
+    return not board_state[loc]
 
 
 def check_tableau_empty(tableau_num):
-    board
+    tab_str = f"tableau_{tableau_num}"
+    return check_loc_empty(tab_str)
+
+
+def check_foundation_empty(foundation_num):
+    found_str = f"foundation_{foundation_num}"
+    return check_loc_empty(found_str)
+
+
+def check_tableaus_empty() -> list[bool]:
+    tableaus = range(1, 8)
+    return [check_tableau_empty(tableau_num) for tableau_num in tableaus]
+
+
+def check_foundations_empty() -> list[bool]:
+    foundations = range(1, 5)
+    return [check_foundation_empty(foundation_num) for foundation_num in foundations]
+
+
+def check_foundation_movement_possible(card, dest):
+    pass
+
+
+def check_card_movement_possible(card: list[int], dest: str):
+    return True
+    suit = card[0]
+    rank = card[1]
+
+    # if Ace
+    if rank == 1:
+        if "foundation" in dest and check_loc_empty(dest):
+            return True
+        return False
+
+    if rank == 13:
+        if "tableau" in dest and check_loc_empty(dest):
+            return True
+
     pass
 
 
@@ -167,12 +227,13 @@ def get_suit_of_card(card_list: list) -> int:
     return card_list[0]
 
 
-def get_all_possible_actions(board_state) -> list:
+def get_all_possible_actions() -> list:
     pass
 
 
-def get_card_actions(board_state, card) -> list:
-    """iterate through all the cards in the board state and see where this one card can go
+def get_card_actions(card) -> list:
+    """iterate through all the locations in the board state and see where this one card can go
+    locations are all the tableaus and foundations
 
     Parameters
     ----------
@@ -184,34 +245,40 @@ def get_card_actions(board_state, card) -> list:
     Returns
     -------
     list
-        list of actions that can be taken, ideally in the format of "move card here"
+        list of actions that can be taken, ideally in the format of "move card here" (i.e. [card, dest])
     """
     pass
 
 
+def move_card(card, dest):
+    if not check_card_movement_possible(card, dest):
+        return False
+
+    card_name = get_card_name_by_value(*card)
+    card_elem = driver.find_element(by=By.CSS_SELECTOR, value=f"#{card_name}")
+    dest_elem = board_elements[dest]
+
+    print(f"Moving Card '{card_name}' to '{dest}'")
+
+    ActionChains(driver).drag_and_drop(card_elem, dest_elem).perform()
+    return True
+
+
 def main():
     set_up_cards()
-    driver = driver_setup()
+    driver_setup()
+    global board_state
 
     driver.get("https://freesolitaire.win/turn-one#148042")
-
-    stock = driver.find_element(by=By.CSS_SELECTOR, value=STOCK)
-    waste = driver.find_element(by=By.CSS_SELECTOR, value=WASTE)
-    foundation1, foundation2, foundation3, foundation4 = driver.find_elements(
-        by=By.CSS_SELECTOR, value=FOUND_CLASS
-    )
-    (
-        tableau1,
-        tableau2,
-        tableau3,
-        tableau4,
-        tableau5,
-        tableau6,
-        tableau7,
-    ) = driver.find_elements(by=By.CSS_SELECTOR, value=COLS)
+    set_up_board_elements()
 
     board_state = get_board_state(driver)
     print(dumps(board_state, indent=2))
+
+    print(check_foundations_empty())
+    print(check_tableaus_empty())
+
+    move_card([2, 8], "tableau_7")
 
     # stock.click()
     # print("-" * 40)
@@ -223,8 +290,8 @@ def main():
 
     # board_state = get_board_state(driver)
     # print(dumps(board_state, indent=2))
-    print(get_card_color(board_state["tableau_6"][-1][0]))
-    print(get_card_color(board_state["tableau_7"][-1][0]))
+    # print(get_card_color(board_state["tableau_6"][-1][0]))
+    # print(get_card_color(board_state["tableau_7"][-1][0]))
 
     x = input("Press Enter to exit")
 
