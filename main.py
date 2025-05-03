@@ -1,14 +1,21 @@
 from copy import deepcopy
 from enum import Enum
 from json import dumps
+from sys import exit
 
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchDriverException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from webdriver_manager.firefox import GeckoDriverManager
 
 DEAL = 148042
+# DEAL = 131986
+# DEAL = 124149
+
 MODE = "turn-one"
-SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}#{DEAL}"
+SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}"  # #{DEAL}"
 
 STOCK = "#stock"
 WASTE = "#waste"
@@ -25,6 +32,7 @@ class Suit(Enum):
     DIAMOND = 4
 
 
+# A dictionary representation of a blank board state
 board = {
     "stock": True,  # whether or not there's a card
     "waste": None,  # what card is here?
@@ -41,14 +49,28 @@ board = {
     "tableau_7": [],  # Piles for cards to be in
 }
 
+# global elements to be used in other functions
 board_state = {}
 cards = {}
-
 driver = None
 board_elements = {key: None for key in board.keys()}
 
 
-def get_card_name_by_value(suit, rank):
+def get_card_name_by_value(suit, rank) -> str | None:
+    """Generates the freesolitaire.win card name for the given suit and rank
+
+    Parameters
+    ----------
+    suit : int
+        The suit of the card. Typically the first object in the card list object
+    rank : int
+        The rank of the card. Should be the second/last object in the card list object
+
+    Returns
+    -------
+    str or None
+        Valid card name if there is one, otherwise returns None
+    """
     for key, val in cards.items():
         if val == [suit, rank]:
             return key
@@ -57,6 +79,7 @@ def get_card_name_by_value(suit, rank):
 
 # this follows freesolitaire.win's setup
 def set_up_cards():
+    """Initializes the global cards"""
     iter = 0
     for rank in range(1, 14):
         for suit in range(1, 5):
@@ -65,6 +88,7 @@ def set_up_cards():
 
 
 def set_up_board_elements():
+    """Initializes the global board elements"""
     global board_elements
 
     board_elements["stock"] = driver.find_element(by=By.CSS_SELECTOR, value=STOCK)
@@ -86,13 +110,17 @@ def set_up_board_elements():
     ) = driver.find_elements(by=By.CSS_SELECTOR, value=COLS)
 
 
-def driver_setup() -> webdriver:
+def driver_setup():
+    """initializes the global driver"""
     global driver
-    driver = webdriver.Firefox()
+    driver = webdriver.Firefox(service=FirefoxService(GeckoDriverManager().install()))
     driver.implicitly_wait(0.5)
+    driver.get(SOLITAIRE_LINK)
 
 
-def get_board_state(driver) -> dict:
+def get_board_state():
+    """Sets the global board state based on information from the global driver"""
+    global driver
     # get a fresh copy of the blank board
     global board_state
     board_state = deepcopy(board)
@@ -142,66 +170,196 @@ def get_board_state(driver) -> dict:
             card_slot = cards[id] if visible else "card"
             board_state[current_tableau].append(card_slot)
 
-    return board_state
 
-
-def draw_from_stock(stock):
+def draw_from_stock():
+    """Clicks the stock element"""
+    stock = board_elements["stock"]
     stock.click()
 
 
-def get_tableau_elements(tableau_num):
-    pass
-
-
 def check_loc_empty(loc):
+    """Checks whether or not the given location is empty
+
+    Parameters
+    ----------
+    loc : string
+        String representation of the location, as described in `board_state` or `board`
+
+    Returns
+    -------
+    bool
+        True if empty, else False
+    """
     return not board_state[loc]
 
 
 def check_tableau_empty(tableau_num):
+    """Checks whether or not the given tableau is empty
+
+    Parameters
+    ----------
+    loc : string
+        String representation of the tableau, as described in `board_state` or `board`
+
+    Returns
+    -------
+    bool
+        True if empty, else False
+    """
+
     tab_str = f"tableau_{tableau_num}"
     return check_loc_empty(tab_str)
 
 
 def check_foundation_empty(foundation_num):
+    """Checks whether or not the given tableau is empty
+
+    Parameters
+    ----------
+    loc : string
+        String representation of the tableau, as described in `board_state` or `board`
+
+    Returns
+    -------
+    bool
+        True if empty, else False
+    """
     found_str = f"foundation_{foundation_num}"
     return check_loc_empty(found_str)
 
 
 def check_tableaus_empty() -> list[bool]:
+    """Checks whether or not each tableau is empty
+
+    Returns
+    -------
+    list[bool]
+        List of booleans, which are True if empty, else False. List is in order of the tableaus from left to right
+    """
     tableaus = range(1, 8)
     return [check_tableau_empty(tableau_num) for tableau_num in tableaus]
 
 
 def check_foundations_empty() -> list[bool]:
+    """Checks whether or not each foundation is empty
+
+    Returns
+    -------
+    list[bool]
+        List of booleans, which are True if empty, else False. List is in order of the foundations from left to right
+    """
     foundations = range(1, 5)
     return [check_foundation_empty(foundation_num) for foundation_num in foundations]
 
 
-def check_foundation_movement_possible(card, dest):
-    pass
+def check_foundation_movement_possible(card, dest) -> bool:
+    """Checks to see if movement of a card to the given foundation is possible
 
+    Parameters
+    ----------
+    card : list[int]
+        Card representation (i.e. [suit, rank])
+    dest : str
+        String representation of the desired foundation (i.e. "foundation_x")
 
-def check_card_movement_possible(card: list[int], dest: str):
-    return True
+    Returns
+    -------
+    bool
+        True if possible, else False
+    """
+    if card == "card":
+        return False
     suit = card[0]
     rank = card[1]
 
     # if Ace
     if rank == 1:
-        if "foundation" in dest and check_loc_empty(dest):
-            return True
+        return check_loc_empty(dest)
+
+    if check_loc_empty(dest):
         return False
 
-    if rank == 13:
-        if "tableau" in dest and check_loc_empty(dest):
-            return True
+    dest_card = board_state[dest][-1]
 
-    pass
+    dst_suit = dest_card[0]
+    dst_rank = dest_card[1]
+
+    return suit == dst_suit and dst_rank == rank - 1
+
+
+def check_tableau_movement_possible(card, dest):
+    """Checks to see if movement of a card to the given tableau is possible
+
+    Parameters
+    ----------
+    card : list[int]
+        Card representation (i.e. [suit, rank])
+    dest : str
+        String representation of the desired tableau (i.e. "tableau_x")
+
+    Returns
+    -------
+    bool
+        True if possible, else False
+    """
+    if card == "card":
+        return False
+
+    suit = card[0]
+    rank = card[1]
+
+    # if King
+    if rank == 13:
+        return check_loc_empty(dest)
+
+    if check_loc_empty(dest):
+        return False
+
+    dst_card = board_state[dest][-1]
+
+    dst_suit = dst_card[0]
+    dst_rank = dst_card[1]
+
+    src_col = get_card_color(suit)
+    dst_col = get_card_color(dst_suit)
+
+    return src_col != dst_col and dst_rank == rank + 1
+
+
+def check_card_movement_possible(card: list[int], dest: str):
+    """Checks to see if movement of a card to the given location is possible
+
+    Parameters
+    ----------
+    card : list[int]
+        Card representation (i.e. [suit, rank])
+    dest : str
+        String representation of the desired location (i.e. "location_x")
+
+    Returns
+    -------
+    bool
+        True if possible, else False
+    """
+
+    if "foundation" in dest:
+        return check_foundation_movement_possible(card, dest)
+
+    return check_tableau_movement_possible(card, dest)
 
 
 def get_card_color(suit: int) -> str:
-    """
-    Get the rank of the given card object. Returns "unknown" if unknown.
+    """Get the rank of the given card object. Returns "unknown" if unknown.
+
+    Parameters
+    ----------
+    suit : int
+        Representation of the given card's suit. See the Suit class as a reference.
+
+    Returns
+    -------
+    str
+        "black", "red", or "unknown"
     """
 
     if suit <= 0:
@@ -209,6 +367,7 @@ def get_card_color(suit: int) -> str:
     return "black" if suit % 2 else "red"
 
 
+# I don't use these next two super often. I should.
 def get_rank_of_card(card_list: list) -> int:
     """
     Get the rank of the given card object. Returns 0 if unknown.
@@ -227,30 +386,113 @@ def get_suit_of_card(card_list: list) -> int:
     return card_list[0]
 
 
-def get_all_possible_actions() -> list:
-    pass
-
-
-def get_card_actions(card) -> list:
-    """iterate through all the locations in the board state and see where this one card can go
-    locations are all the tableaus and foundations
+def get_src_cards(src_loc: str) -> list[int]:
+    """gets the list of cards in the board state at the source location (src_loc)
 
     Parameters
     ----------
-    board_state : _type_
-        _description_
-    card : _type_
-        _description_
+    src_loc : string
+        A location a card can reasonably be taken from within the board state object
+
+    Returns
+    -------
+    list[list[int]]
+        The list of cards. Can be an empty list.
+
+    """
+
+    bs_loc = board_state[src_loc]
+    if bs_loc == None or not bs_loc:
+        return []
+
+    if src_loc == "waste":
+        return [bs_loc]
+
+    return bs_loc
+
+
+def get_all_possible_actions() -> list:
+    """Gets a list of all possible actions.
 
     Returns
     -------
     list
-        list of actions that can be taken, ideally in the format of "move card here" (i.e. [card, dest])
+        List contains all possible actions in the format of [[source_card, dest], ..., "stock"]
     """
-    pass
+    src_locations = [
+        "waste",
+        "tableau_1",
+        "tableau_2",
+        "tableau_3",
+        "tableau_4",
+        "tableau_5",
+        "tableau_6",
+        "tableau_7",
+    ]
+
+    dst_locations = [
+        "foundation_1",
+        "foundation_2",
+        "foundation_3",
+        "foundation_4",
+        "tableau_1",
+        "tableau_2",
+        "tableau_3",
+        "tableau_4",
+        "tableau_5",
+        "tableau_6",
+        "tableau_7",
+    ]
+
+    ret_obj = []
+
+    for src_loc in src_locations:
+        cards = get_src_cards(src_loc)
+        print("cards: ", end="")
+        print(cards)
+
+        for card in cards:
+            if card is None:
+                continue
+
+            for dst_loc in dst_locations:
+                if check_card_movement_possible(card, dst_loc):
+                    ret_obj.append([card, dst_loc])
+
+    ret_obj.append("stock")
+
+    return ret_obj
 
 
-def move_card(card, dest):
+def perform_action(action: list[int, str] | str) -> None:
+    """Performs the given action.
+
+    Parameters
+    ----------
+    action : list[int, str] | str
+        Action to be performed. Either a representation of a card and a destination to move it to or "stock".
+    """
+    if action == "stock":
+        return draw_from_stock()
+
+    move_card(*action)
+
+
+def move_card(card, dest) -> bool:
+    """Moves the given card to the given destination.
+
+    Parameters
+    ----------
+    card : list[int, int]
+        Representation of a card
+    dest : str
+        Representation of a location within the `board_state` object
+
+    Returns
+    -------
+    bool
+        Whether or not the given movement was possible within solitaire rules.
+    """
     if not check_card_movement_possible(card, dest):
         return False
 
@@ -260,11 +502,15 @@ def move_card(card, dest):
 
     print(f"Moving Card '{card_name}' to '{dest}'")
 
-    ActionChains(driver).drag_and_drop(card_elem, dest_elem).perform()
+    # ActionChains(driver).drag_and_drop(card_elem, dest_elem).perform()
+    ActionChains(driver).move_to_element_with_offset(
+        card_elem, xoffset=0, yoffset=-55
+    ).click_and_hold().move_to_element(dest_elem).release().perform()
     return True
 
 
 def main():
+    """Main function, plays solitaire"""
     set_up_cards()
     driver_setup()
     global board_state
@@ -272,26 +518,14 @@ def main():
     driver.get("https://freesolitaire.win/turn-one#148042")
     set_up_board_elements()
 
-    board_state = get_board_state(driver)
-    print(dumps(board_state, indent=2))
-
-    print(check_foundations_empty())
-    print(check_tableaus_empty())
-
-    move_card([2, 8], "tableau_7")
-
-    # stock.click()
-    # print("-" * 40)
-
-    # board_state = get_board_state(driver)
-    # print(dumps(board_state, indent=2))
-
-    # x = input("Press Enter to check next board state")
-
-    # board_state = get_board_state(driver)
-    # print(dumps(board_state, indent=2))
-    # print(get_card_color(board_state["tableau_6"][-1][0]))
-    # print(get_card_color(board_state["tableau_7"][-1][0]))
+    while True:
+        get_board_state()
+        actions = get_all_possible_actions()
+        print("actions:", end="")
+        print(actions)
+        if not actions:
+            break
+        perform_action(actions[0])
 
     x = input("Press Enter to exit")
 
@@ -299,4 +533,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        driver.quit()
+        raise e
