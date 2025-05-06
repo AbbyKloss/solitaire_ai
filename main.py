@@ -283,7 +283,6 @@ def check_foundation_movement_possible(card: list[int], dest: str) -> bool:
     rank = card[1]
 
     bs_elem = get_element_of_board_state_from_card(card)
-    print(bs_elem)
     if bs_elem and card in board_state[bs_elem] and card != board_state[bs_elem][-1]:
         return False
 
@@ -426,7 +425,7 @@ def get_src_cards(src_loc: str) -> list[int]:
     return bs_loc
 
 
-def get_all_possible_actions() -> [list, list]:
+def get_all_possible_actions() -> list[list, list]:
     """Gets a list of all possible actions.
 
     Returns
