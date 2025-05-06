@@ -411,7 +411,7 @@ def get_src_cards(src_loc: str) -> list[int]:
     return bs_loc
 
 
-def get_all_possible_actions() -> list:
+def get_all_possible_actions() -> [list, list]:
     """Gets a list of all possible actions.
 
     Returns
@@ -445,6 +445,8 @@ def get_all_possible_actions() -> list:
     ]
 
     ret_obj = []
+    #source and destination decide proper order of moves
+    source_dest_obj = []
 
     for src_loc in src_locations:
         cards = get_src_cards(src_loc)
@@ -458,10 +460,15 @@ def get_all_possible_actions() -> list:
             for dst_loc in dst_locations:
                 if check_card_movement_possible(card, dst_loc):
                     ret_obj.append([card, dst_loc])
+                    source_dest_obj.append({"card_value":card[1], "source":src_loc, "card_pos":cards.index(card),
+                                            "destination":dst_loc})
+                    print(source_dest_obj)
 
-    ret_obj.append("stock")
+    if STOCK:
+        ret_obj.append("stock")
+        source_dest_obj.append({"card_value":"card", "source":"stock", "card_pos":-1, "destination":"waste"})
 
-    return ret_obj
+    return ret_obj, source_dest_obj
 
 
 def perform_action(action: list[int, str] | str) -> None:
@@ -508,6 +515,70 @@ def move_card(card, dest) -> bool:
     ).click_and_hold().move_to_element(dest_elem).release().perform()
     return True
 
+def get_foundation_lengths():
+    foundations = ["foundation_1", "foundation_2", "foundation_3", "foundation_4"]
+    length_list = []
+    for foundation in foundations:
+        length = len(get_src_cards(foundation))
+        length_list.append(length)
+    return length_list
+
+def get_num_unknowns(location):
+    cards = get_src_cards(location)
+    unknown_count = 0
+    for card in cards:
+        if card == "card":
+            unknown_count += 1
+    return unknown_count
+
+def check_if_king_available(action_info_list):
+    check = False
+    for action_dict in action_info_list:
+        #print(action_dict)
+        if action_dict["card_value"] == 13:
+            check = True
+    return check
+
+def move_ranker(action_info_list):
+    #lower ranks are better
+    foundation_sizes = get_foundation_lengths()
+    foundation_avg = sum(foundation_sizes)/4
+    king_check = check_if_king_available(action_info_list)
+    best_move = {"index":999, "rank":999} #placeholder
+    i = 0
+    for action_dict in action_info_list:
+        if action_dict["source"] == "stock":
+            rank = 5
+        elif "foundation" in action_dict["destination"]:
+            if len(get_src_cards(action_dict["destination"])) < foundation_avg+2:
+                rank = 1
+            elif king_check and "tableau" in action_dict["source"]:
+                rank = 3.75
+            else:
+                if action_dict["card_pos"] > 0: #if the move will reveal a card
+                    rank = 2.5
+                else:
+                    rank = 4.5
+        elif "tableau" in action_dict["source"] and "tableau" in action_dict["destination"]:
+            if get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
+                rank = 2
+            elif king_check:
+                if action_dict["card_value"] == 13: #moves king to empty foundation
+                    rank = 3
+                if action_dict["card_pos"] == 0: #moves anything that will empty a foundation
+                    rank = 3.5
+            else:
+                rank = 6
+        elif action_dict["source"] == "waste" and "tableau" in action_dict["destination"]:
+            rank = 4
+        else:
+            print(f"ERROR: UNRANKABLE ACTION: {action_dict}")
+        if rank < best_move["rank"]:
+            best_move = {"index":i,"rank":rank}
+
+        i += 1
+
+    return best_move["index"]
 
 def main():
     """Main function, plays solitaire"""
@@ -520,12 +591,15 @@ def main():
 
     while True:
         get_board_state()
-        actions = get_all_possible_actions()
+        actions, action_info_dict = get_all_possible_actions()
         print("actions:", end="")
         print(actions)
+        #pause = input("input anything to continue")
         if not actions:
             break
-        perform_action(actions[0])
+        best_action_index = move_ranker(action_info_dict)
+        print(f"Best Action: {action_info_dict[best_action_index]}")
+        perform_action(actions[best_action_index])
 
     x = input("Press Enter to exit")
 
