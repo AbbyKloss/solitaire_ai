@@ -15,7 +15,7 @@ DEAL = 148042
 # DEAL = 124149
 
 MODE = "turn-one"
-SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}"  # #{DEAL}"
+SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}#{DEAL}"
 
 STOCK = "#stock"
 WASTE = "#waste"
@@ -171,6 +171,16 @@ def get_board_state():
             board_state[current_tableau].append(card_slot)
 
 
+def get_element_of_board_state_from_card(card: list[int]) -> str | bool:
+    for key in board_state.keys():
+        if type(board_state[key]) is not list:
+            continue
+        for bs_card in board_state[key]:
+            if bs_card == card:
+                return key
+    return False
+
+
 def draw_from_stock():
     """Clicks the stock element"""
     stock = board_elements["stock"]
@@ -271,6 +281,11 @@ def check_foundation_movement_possible(card: list[int], dest: str) -> bool:
         return False
     suit = card[0]
     rank = card[1]
+
+    bs_elem = get_element_of_board_state_from_card(card)
+    print(bs_elem)
+    if bs_elem and card in board_state[bs_elem] and card != board_state[bs_elem][-1]:
+        return False
 
     # if Ace
     if rank == 1:
@@ -445,7 +460,7 @@ def get_all_possible_actions() -> [list, list]:
     ]
 
     ret_obj = []
-    #source and destination decide proper order of moves
+    # source and destination decide proper order of moves
     source_dest_obj = []
 
     for src_loc in src_locations:
@@ -460,13 +475,26 @@ def get_all_possible_actions() -> [list, list]:
             for dst_loc in dst_locations:
                 if check_card_movement_possible(card, dst_loc):
                     ret_obj.append([card, dst_loc])
-                    source_dest_obj.append({"card_value":card[1], "source":src_loc, "card_pos":cards.index(card),
-                                            "destination":dst_loc})
+                    source_dest_obj.append(
+                        {
+                            "card_value": card[1],
+                            "source": src_loc,
+                            "card_pos": cards.index(card),
+                            "destination": dst_loc,
+                        }
+                    )
                     print(source_dest_obj)
 
     if STOCK:
         ret_obj.append("stock")
-        source_dest_obj.append({"card_value":"card", "source":"stock", "card_pos":-1, "destination":"waste"})
+        source_dest_obj.append(
+            {
+                "card_value": "card",
+                "source": "stock",
+                "card_pos": -1,
+                "destination": "waste",
+            }
+        )
 
     return ret_obj, source_dest_obj
 
@@ -515,6 +543,7 @@ def move_card(card, dest) -> bool:
     ).click_and_hold().move_to_element(dest_elem).release().perform()
     return True
 
+
 def get_foundation_lengths():
     foundations = ["foundation_1", "foundation_2", "foundation_3", "foundation_4"]
     length_list = []
@@ -522,6 +551,7 @@ def get_foundation_lengths():
         length = len(get_src_cards(foundation))
         length_list.append(length)
     return length_list
+
 
 def get_num_unknowns(location):
     cards = get_src_cards(location)
@@ -531,54 +561,66 @@ def get_num_unknowns(location):
             unknown_count += 1
     return unknown_count
 
+
 def check_if_king_available(action_info_list):
     check = False
     for action_dict in action_info_list:
-        #print(action_dict)
+        # print(action_dict)
         if action_dict["card_value"] == 13:
             check = True
     return check
 
+
 def move_ranker(action_info_list):
-    #lower ranks are better
+    # lower ranks are better
     foundation_sizes = get_foundation_lengths()
-    foundation_avg = sum(foundation_sizes)/4
+    foundation_avg = sum(foundation_sizes) / 4
     king_check = check_if_king_available(action_info_list)
-    best_move = {"index":999, "rank":999} #placeholder
+    best_move = {"index": 999, "rank": 999}  # placeholder
     i = 0
     for action_dict in action_info_list:
         if action_dict["source"] == "stock":
             rank = 5
         elif "foundation" in action_dict["destination"]:
-            if len(get_src_cards(action_dict["destination"])) < foundation_avg+2:
+            if len(get_src_cards(action_dict["destination"])) < foundation_avg + 2:
                 rank = 1
             elif king_check and "tableau" in action_dict["source"]:
                 rank = 3.75
             else:
-                if action_dict["card_pos"] > 0: #if the move will reveal a card
+                if action_dict["card_pos"] > 0:  # if the move will reveal a card
                     rank = 2.5
                 else:
                     rank = 4.5
-        elif "tableau" in action_dict["source"] and "tableau" in action_dict["destination"]:
-            if get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
+        elif (
+            "tableau" in action_dict["source"]
+            and "tableau" in action_dict["destination"]
+        ):
+            if get_num_unknowns(action_dict["source"]) > get_num_unknowns(
+                action_dict["destination"]
+            ):
                 rank = 2
             elif king_check:
-                if action_dict["card_value"] == 13: #moves king to empty foundation
+                if action_dict["card_value"] == 13:  # moves king to empty foundation
                     rank = 3
-                if action_dict["card_pos"] == 0: #moves anything that will empty a foundation
+                if (
+                    action_dict["card_pos"] == 0
+                ):  # moves anything that will empty a foundation
                     rank = 3.5
             else:
                 rank = 6
-        elif action_dict["source"] == "waste" and "tableau" in action_dict["destination"]:
+        elif (
+            action_dict["source"] == "waste" and "tableau" in action_dict["destination"]
+        ):
             rank = 4
         else:
             print(f"ERROR: UNRANKABLE ACTION: {action_dict}")
         if rank < best_move["rank"]:
-            best_move = {"index":i,"rank":rank}
+            best_move = {"index": i, "rank": rank}
 
         i += 1
 
     return best_move["index"]
+
 
 def main():
     """Main function, plays solitaire"""
@@ -594,7 +636,7 @@ def main():
         actions, action_info_dict = get_all_possible_actions()
         print("actions:", end="")
         print(actions)
-        #pause = input("input anything to continue")
+        # pause = input("input anything to continue")
         if not actions:
             break
         best_action_index = move_ranker(action_info_dict)
