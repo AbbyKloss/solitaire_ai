@@ -15,7 +15,7 @@ DEAL = 148042
 # DEAL = 124149
 
 MODE = "turn-one"
-SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}#{DEAL}"
+SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}"  # #{DEAL} was here
 
 STOCK = "#stock"
 WASTE = "#waste"
@@ -375,8 +375,8 @@ def get_card_color(suit: int) -> str:
     str
         "black", "red", or "unknown"
     """
-
-    if suit <= 0:
+    #print(suit)
+    if int(suit) <= 0:
         return "unknown"
     return "black" if suit % 2 else "red"
 
@@ -464,8 +464,8 @@ def get_all_possible_actions() -> list[list, list]:
 
     for src_loc in src_locations:
         cards = get_src_cards(src_loc)
-        print("cards: ", end="")
-        print(cards)
+        #print("cards: ", end="")
+        #print(cards)
 
         for card in cards:
             if card is None:
@@ -482,7 +482,7 @@ def get_all_possible_actions() -> list[list, list]:
                             "destination": dst_loc,
                         }
                     )
-                    print(source_dest_obj)
+                    #print(source_dest_obj)
 
     if STOCK:
         ret_obj.append("stock")
@@ -572,6 +572,7 @@ def check_if_king_available(action_info_list):
 
 def move_ranker(action_info_list):
     global stock_check
+    global stock_size
     # lower ranks are better
     foundation_sizes = get_foundation_lengths()
     foundation_avg = sum(foundation_sizes) / 4
@@ -580,27 +581,29 @@ def move_ranker(action_info_list):
     best_move = {"index": 999, "rank": 999}  # placeholder
     i = 0
     for action_dict in action_info_list:
-        print(action_dict)
+        #print(action_dict)
         if action_dict["source"] == "stock":
-            if stock_check < 24:  # check if we have looked at the stock 24 times already
-                stock_check += 1
+            if stock_check < stock_size:  # check if we have looked at the whole stock already
+                #stock_check += 1
                 rank = 5
             else:
-                stock_check = 0
+                #stock_check = 0
                 rank = 7
         elif "foundation" in action_dict["destination"]:
-            if len(get_src_cards(action_dict["destination"])) < foundation_avg + 2:
+            if len(get_src_cards(action_dict["destination"])) < foundation_avg + 1:
                 rank = 1
             elif king_check and "tableau" in action_dict["source"] and empty_num == 0:
                 rank = 3.75
             else:
-                if action_dict["card_pos"] > 0:  # if the move will reveal a card
+                if action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
                     rank = 2.5
                 else:
                     rank = 4.5
         elif "tableau" in action_dict["source"] and "tableau" in action_dict["destination"]:
             if get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
                 rank = 2
+            elif action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
+                rank = 2.5
             elif king_check:
                 if action_dict["card_value"] == 13 and action_dict["card_pos"] != 0:  # moves king to empty foundation
                     rank = 3
@@ -618,11 +621,19 @@ def move_ranker(action_info_list):
             best_move = {"index": i, "rank": rank}
 
         i += 1
-    print(f"move rank {best_move['rank']}")
+    #print(f"move rank {best_move['rank']}")
+    if action_info_list[best_move["index"]]["source"] == "waste":
+        stock_size -= 1 #lowers amount of cards in stock every time a waste card is used
+    elif action_info_list[best_move["index"]]["source"] == "stock":
+        stock_check += 1
+    else:
+        stock_check = 0
+    print(f"STOCK SIZE: {stock_size}, STOCK CHECK: {stock_check}")
     return best_move["index"]
 
 
 stock_check = 0
+stock_size = 24
 
 def main():
     """Main function, plays solitaire"""
@@ -630,23 +641,20 @@ def main():
     driver_setup()
     global board_state
 
-    driver.get("https://freesolitaire.win/turn-one#148042")
+    driver.get("https://freesolitaire.win/turn-one") # #deal number was here as well
     set_up_board_elements()
 
     while True:
-        try:
-            get_board_state()
-            actions, action_info_dict = get_all_possible_actions()
-            print("actions:", end="")
-            print(actions)
-            # pause = input("input anything to continue")
-            if not actions:
-                break
-            best_action_index = move_ranker(action_info_dict)
-            print(f"Best Action: {action_info_dict[best_action_index]}")
-            perform_action(actions[best_action_index])
-        except Exception as e:
-            print(f"ERROR: {e}")
+        get_board_state()
+        actions, action_info_dict = get_all_possible_actions()
+        #print("actions:", end="")
+        #print(actions)
+        # pause = input("input anything to continue")
+        if not actions:
+            break
+        best_action_index = move_ranker(action_info_dict)
+        print(f"Best Action: {action_info_dict[best_action_index]}")
+        perform_action(actions[best_action_index])
     x = input("Press Enter to exit")
 
     driver.quit()
