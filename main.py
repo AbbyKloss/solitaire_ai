@@ -571,45 +571,46 @@ def check_if_king_available(action_info_list):
 
 
 def move_ranker(action_info_list):
+    global stock_check
     # lower ranks are better
     foundation_sizes = get_foundation_lengths()
     foundation_avg = sum(foundation_sizes) / 4
     king_check = check_if_king_available(action_info_list)
+    empty_num = check_tableaus_empty().count(True)
     best_move = {"index": 999, "rank": 999}  # placeholder
     i = 0
     for action_dict in action_info_list:
+        print(action_dict)
         if action_dict["source"] == "stock":
-            rank = 5
+            if stock_check < 24:  # check if we have looked at the stock 24 times already
+                stock_check += 1
+                rank = 5
+            else:
+                stock_check = 0
+                rank = 7
         elif "foundation" in action_dict["destination"]:
             if len(get_src_cards(action_dict["destination"])) < foundation_avg + 2:
                 rank = 1
-            elif king_check and "tableau" in action_dict["source"]:
+            elif king_check and "tableau" in action_dict["source"] and empty_num == 0:
                 rank = 3.75
             else:
                 if action_dict["card_pos"] > 0:  # if the move will reveal a card
                     rank = 2.5
                 else:
                     rank = 4.5
-        elif (
-            "tableau" in action_dict["source"]
-            and "tableau" in action_dict["destination"]
-        ):
-            if get_num_unknowns(action_dict["source"]) > get_num_unknowns(
-                action_dict["destination"]
-            ):
+        elif "tableau" in action_dict["source"] and "tableau" in action_dict["destination"]:
+            if get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
                 rank = 2
             elif king_check:
-                if action_dict["card_value"] == 13:  # moves king to empty foundation
+                if action_dict["card_value"] == 13 and action_dict["card_pos"] != 0:  # moves king to empty foundation
                     rank = 3
-                if (
-                    action_dict["card_pos"] == 0
-                ):  # moves anything that will empty a foundation
+                elif action_dict["card_pos"] == 0 and empty_num == 0:  # moves anything that will empty a foundation
                     rank = 3.5
+                else:
+                    rank = 6
             else:
                 rank = 6
-        elif (
-            action_dict["source"] == "waste" and "tableau" in action_dict["destination"]
-        ):
+        elif action_dict["source"] == "waste" and "tableau" in action_dict["destination"]:
             rank = 4
         else:
             print(f"ERROR: UNRANKABLE ACTION: {action_dict}")
@@ -617,9 +618,11 @@ def move_ranker(action_info_list):
             best_move = {"index": i, "rank": rank}
 
         i += 1
-
+    print(f"move rank {best_move['rank']}")
     return best_move["index"]
 
+
+stock_check = 0
 
 def main():
     """Main function, plays solitaire"""
@@ -631,17 +634,19 @@ def main():
     set_up_board_elements()
 
     while True:
-        get_board_state()
-        actions, action_info_dict = get_all_possible_actions()
-        print("actions:", end="")
-        print(actions)
-        # pause = input("input anything to continue")
-        if not actions:
-            break
-        best_action_index = move_ranker(action_info_dict)
-        print(f"Best Action: {action_info_dict[best_action_index]}")
-        perform_action(actions[best_action_index])
-
+        try:
+            get_board_state()
+            actions, action_info_dict = get_all_possible_actions()
+            print("actions:", end="")
+            print(actions)
+            # pause = input("input anything to continue")
+            if not actions:
+                break
+            best_action_index = move_ranker(action_info_dict)
+            print(f"Best Action: {action_info_dict[best_action_index]}")
+            perform_action(actions[best_action_index])
+        except Exception as e:
+            print(f"ERROR: {e}")
     x = input("Press Enter to exit")
 
     driver.quit()
