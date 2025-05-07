@@ -376,7 +376,9 @@ def get_card_color(suit: int) -> str:
         "black", "red", or "unknown"
     """
     #print(suit)
-    if int(suit) <= 0:
+    if type(suit) == str:
+        return "unknown"
+    if suit <= 0:
         return "unknown"
     return "black" if suit % 2 else "red"
 
@@ -464,8 +466,8 @@ def get_all_possible_actions() -> list[list, list]:
 
     for src_loc in src_locations:
         cards = get_src_cards(src_loc)
-        #print("cards: ", end="")
-        #print(cards)
+        print("cards: ", end="")
+        print(cards)
 
         for card in cards:
             if card is None:
@@ -561,12 +563,28 @@ def get_num_unknowns(location):
     return unknown_count
 
 
-def check_if_king_available(action_info_list):
+def check_if_king_available():
     check = False
-    for action_dict in action_info_list:
-        # print(action_dict)
-        if action_dict["card_value"] == 13:
-            check = True
+    #for action_dict in action_info_list:
+    #    # print(action_dict)
+    #    if action_dict["card_value"] == 13:
+    #        check = True
+    src_locations = [
+        "waste",
+        "tableau_1",
+        "tableau_2",
+        "tableau_3",
+        "tableau_4",
+        "tableau_5",
+        "tableau_6",
+        "tableau_7",
+    ]
+    for location in src_locations:
+        #print("TEST",get_src_cards(location))
+        for card in get_src_cards(location):
+            if card[1] == 13:
+                check = True
+    print("KING CHECK: ", check)
     return check
 
 
@@ -576,12 +594,11 @@ def move_ranker(action_info_list):
     # lower ranks are better
     foundation_sizes = get_foundation_lengths()
     foundation_avg = sum(foundation_sizes) / 4
-    king_check = check_if_king_available(action_info_list)
+    king_check = check_if_king_available()
     empty_num = check_tableaus_empty().count(True)
     best_move = {"index": 999, "rank": 999}  # placeholder
     i = 0
     for action_dict in action_info_list:
-        #print(action_dict)
         if action_dict["source"] == "stock":
             if stock_check < stock_size:  # check if we have looked at the whole stock already
                 #stock_check += 1
@@ -592,34 +609,37 @@ def move_ranker(action_info_list):
         elif "foundation" in action_dict["destination"]:
             if len(get_src_cards(action_dict["destination"])) < foundation_avg + 1:
                 rank = 1
+            elif action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
+                rank = 2.5
             elif king_check and "tableau" in action_dict["source"] and empty_num == 0:
                 rank = 3.75
             else:
-                if action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
-                    rank = 2.5
-                else:
+                if action_dict["source"] == "waste":
                     rank = 4.5
+                else:
+                    rank = 6
         elif "tableau" in action_dict["source"] and "tableau" in action_dict["destination"]:
-            if get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
+            if get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card" and \
+                    get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
                 rank = 2
             elif action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
-                rank = 2.5
+                rank = 2.25
             elif king_check:
                 if action_dict["card_value"] == 13 and action_dict["card_pos"] != 0:  # moves king to empty foundation
                     rank = 3
                 elif action_dict["card_pos"] == 0 and empty_num == 0:  # moves anything that will empty a foundation
                     rank = 3.5
                 else:
-                    rank = 6
+                    rank = 5.5
             else:
-                rank = 6
+                rank = 6.5
         elif action_dict["source"] == "waste" and "tableau" in action_dict["destination"]:
             rank = 4
         else:
             print(f"ERROR: UNRANKABLE ACTION: {action_dict}")
         if rank < best_move["rank"]:
             best_move = {"index": i, "rank": rank}
-
+        print(rank, action_dict)
         i += 1
     #print(f"move rank {best_move['rank']}")
     if action_info_list[best_move["index"]]["source"] == "waste":
@@ -628,7 +648,7 @@ def move_ranker(action_info_list):
         stock_check += 1
     else:
         stock_check = 0
-    print(f"STOCK SIZE: {stock_size}, STOCK CHECK: {stock_check}")
+    print(f"MOVE RANK: {best_move['rank']}, STOCK SIZE: {stock_size}, STOCK CHECK: {stock_check}")
     return best_move["index"]
 
 
@@ -648,7 +668,7 @@ def main():
         get_board_state()
         actions, action_info_dict = get_all_possible_actions()
         #print("actions:", end="")
-        #print(actions)
+        print(actions)
         # pause = input("input anything to continue")
         if not actions:
             break
