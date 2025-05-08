@@ -14,7 +14,7 @@ DEAL = 148042
 # DEAL = 131986
 # DEAL = 124149
 
-MODE = "turn-one"
+MODE = "turn-three"
 SOLITAIRE_LINK = f"https://freesolitaire.win/{MODE}"  # #{DEAL} was here
 
 STOCK = "#stock"
@@ -179,6 +179,25 @@ def get_element_of_board_state_from_card(card: list[int]) -> str | bool:
             if bs_card == card:
                 return key
     return False
+
+
+def check_win_state() -> bool:
+    """Checks the tableaus, stock, and waste. If no cards are in any of these places, return True. Else, return False
+
+    Returns
+    -------
+    bool
+        Whether or not you won. True if yes.
+    """
+    tableaus = [key for key in board_state.keys() if "tableau" in key]
+    for tableau in tableaus:
+        if len(board_state[tableau]) > 0:
+            return False
+    if board_state["stock"]:
+        return False
+    if board_state["waste"] is not None:
+        return False
+    return True
 
 
 def draw_from_stock():
@@ -375,7 +394,6 @@ def get_card_color(suit: int) -> str:
     str
         "black", "red", or "unknown"
     """
-    #print(suit)
     if type(suit) == str:
         return "unknown"
     if suit <= 0:
@@ -466,8 +484,6 @@ def get_all_possible_actions() -> list[list, list]:
 
     for src_loc in src_locations:
         cards = get_src_cards(src_loc)
-        print("cards: ", end="")
-        print(cards)
 
         for card in cards:
             if card is None:
@@ -484,7 +500,6 @@ def get_all_possible_actions() -> list[list, list]:
                             "destination": dst_loc,
                         }
                     )
-                    #print(source_dest_obj)
 
     if STOCK:
         ret_obj.append("stock")
@@ -565,10 +580,6 @@ def get_num_unknowns(location):
 
 def check_if_king_available():
     check = False
-    #for action_dict in action_info_list:
-    #    # print(action_dict)
-    #    if action_dict["card_value"] == 13:
-    #        check = True
     src_locations = [
         "waste",
         "tableau_1",
@@ -580,7 +591,6 @@ def check_if_king_available():
         "tableau_7",
     ]
     for location in src_locations:
-        #print("TEST",get_src_cards(location))
         for card in get_src_cards(location):
             if card[1] == 13:
                 check = True
@@ -600,16 +610,22 @@ def move_ranker(action_info_list):
     i = 0
     for action_dict in action_info_list:
         if action_dict["source"] == "stock":
-            if stock_check < stock_size:  # check if we have looked at the whole stock already
-                #stock_check += 1
+            if (
+                stock_check < stock_size
+            ):  # check if we have looked at the whole stock already
+                # stock_check += 1
                 rank = 5
             else:
-                #stock_check = 0
+                # stock_check = 0
                 rank = 7
         elif "foundation" in action_dict["destination"]:
             if len(get_src_cards(action_dict["destination"])) < foundation_avg + 1:
                 rank = 1
-            elif action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
+            elif (
+                action_dict["card_pos"] > 0
+                and get_src_cards(action_dict["source"])[action_dict["card_pos"] - 1]
+                == "card"
+            ):  # if the move will reveal a card
                 rank = 2.5
             elif king_check and "tableau" in action_dict["source"] and empty_num == 0:
                 rank = 3.75
@@ -618,42 +634,61 @@ def move_ranker(action_info_list):
                     rank = 4.5
                 else:
                     rank = 6
-        elif "tableau" in action_dict["source"] and "tableau" in action_dict["destination"]:
-            if get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card" and \
-                    get_num_unknowns(action_dict["source"]) > get_num_unknowns(action_dict["destination"]):
+        elif (
+            "tableau" in action_dict["source"]
+            and "tableau" in action_dict["destination"]
+        ):
+            if get_src_cards(action_dict["source"])[
+                action_dict["card_pos"] - 1
+            ] == "card" and get_num_unknowns(action_dict["source"]) > get_num_unknowns(
+                action_dict["destination"]
+            ):
                 rank = 2
-            elif action_dict["card_pos"] > 0 and get_src_cards(action_dict["source"])[action_dict["card_pos"]-1] == "card":  # if the move will reveal a card
+            elif (
+                action_dict["card_pos"] > 0
+                and get_src_cards(action_dict["source"])[action_dict["card_pos"] - 1]
+                == "card"
+            ):  # if the move will reveal a card
                 rank = 2.25
             elif king_check:
-                if action_dict["card_value"] == 13 and action_dict["card_pos"] != 0:  # moves king to empty foundation
+                if (
+                    action_dict["card_value"] == 13 and action_dict["card_pos"] != 0
+                ):  # moves king to empty foundation
                     rank = 3
-                elif action_dict["card_pos"] == 0 and empty_num == 0:  # moves anything that will empty a foundation
+                elif (
+                    action_dict["card_pos"] == 0 and empty_num == 0
+                ):  # moves anything that will empty a foundation
                     rank = 3.5
                 else:
                     rank = 5.5
             else:
                 rank = 6.5
-        elif action_dict["source"] == "waste" and "tableau" in action_dict["destination"]:
+        elif (
+            action_dict["source"] == "waste" and "tableau" in action_dict["destination"]
+        ):
             rank = 4
         else:
             print(f"ERROR: UNRANKABLE ACTION: {action_dict}")
         if rank < best_move["rank"]:
             best_move = {"index": i, "rank": rank}
-        print(rank, action_dict)
         i += 1
-    #print(f"move rank {best_move['rank']}")
     if action_info_list[best_move["index"]]["source"] == "waste":
-        stock_size -= 1 #lowers amount of cards in stock every time a waste card is used
+        stock_size -= (
+            1  # lowers amount of cards in stock every time a waste card is used
+        )
     elif action_info_list[best_move["index"]]["source"] == "stock":
         stock_check += 1
     else:
         stock_check = 0
-    print(f"MOVE RANK: {best_move['rank']}, STOCK SIZE: {stock_size}, STOCK CHECK: {stock_check}")
+    print(
+        f"MOVE RANK: {best_move['rank']}, STOCK SIZE: {stock_size}, STOCK CHECK: {stock_check}"
+    )
     return best_move["index"]
 
 
 stock_check = 0
 stock_size = 24
+
 
 def main():
     """Main function, plays solitaire"""
@@ -661,15 +696,14 @@ def main():
     driver_setup()
     global board_state
 
-    driver.get("https://freesolitaire.win/turn-one") # #deal number was here as well
     set_up_board_elements()
 
     while True:
         get_board_state()
+        if check_win_state():
+            print("Win!")
+            break
         actions, action_info_dict = get_all_possible_actions()
-        #print("actions:", end="")
-        print(actions)
-        # pause = input("input anything to continue")
         if not actions:
             break
         best_action_index = move_ranker(action_info_dict)
